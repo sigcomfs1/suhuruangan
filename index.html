@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoring Suhu & Kelembapan</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #000; /* Latar belakang hitam */
+      color: #fff; /* Semua teks menjadi putih */
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+      background: rgba(0, 0, 0, 0.7); /* Background hitam transparan */
+      padding: 20px;
+      border-radius: 10px;
+    }
+    h1 {
+      margin-bottom: 20px;
+      font-size: 2em;
+      color: #fff; /* Judul tetap putih */
+    }
+    .widgets {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .widget {
+      background: rgba(255, 255, 255, 0.1); /* Background widget semi-transparan */
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      flex: 1;
+      text-align: center;
+      color: #fff; /* Semua teks dalam widget menjadi putih */
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+    .widget h2 {
+      margin: 10px 0;
+      color: #fff; /* Judul widget tetap putih */
+    }
+    .widget p {
+      font-size: 2em;
+      color: #fff; /* Angka suhu dan kelembapan juga putih */
+    }
+    .alert {
+      background: rgba(255, 69, 0, 0.8);
+      color: #fff; /* Teks alert tetap putih */
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+      display: none;
+    }
+    .search-container {
+      margin-top: 30px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .search-container input,
+    .search-container button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px;
+      border-radius: 5px;
+      border: 1px solid #ddd;
+      color: #000; /* Warna teks pada input dan tombol hitam */
+    }
+    img {
+      max-width: 50%; /* Ukuran gambar diubah menjadi 50% */
+      height: auto;
+      margin-top: 20px;
+    }
+    #current-time {
+      font-size: 2em;
+      color: #fff; /* Warna waktu tetap putih */
+      margin-top: 20px; /* Memberi jarak antara gambar dan waktu */
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Monitoring Suhu & Kelembapan<br>Ruang Peralatan Signalling & Communication<br>LRT Sumsel Divre III Palembang</h1>
+    <img src="img/Lrt_palembang.jpg" alt="Logo LRT Sumsel">
+
+    <!-- Menampilkan waktu sebagai angka saja -->
+    <div id="current-time"></div> <!-- Tempat untuk menampilkan jam -->
+
+    <div id="alert" class="alert">⚠️ Suhu melebihi 26°C! Harap segera cek kondisi! ⚠️</div>
+
+    <div class="widgets">
+      <div class="widget" id="widget-suhu">
+        <h2>Suhu</h2>
+        <p id="suhu">--</p>
+        <p>°C</p>
+      </div>
+      <div class="widget" id="widget-kelembapan">
+        <h2>Kelembapan</h2>
+        <p id="kelembapan">--</p>
+        <p>%</p>
+      </div>
+    </div>
+
+    <div class="search-container">
+      <h2>Pencarian Data</h2>
+      <input type="date" id="search-date" placeholder="Pilih tanggal">
+      <input type="time" id="search-time" placeholder="Pilih waktu">
+      <button onclick="filterData()">Cari</button>
+      <table>
+        <thead>
+          <tr>
+            <th>Waktu</th>
+            <th>Suhu (°C)</th>
+            <th>Kelembapan (%)</th>
+          </tr>
+        </thead>
+        <tbody id="data-logger">
+          <tr>
+            <td colspan="3">Masukkan parameter pencarian untuk melihat data.</td>
+          </tr>
+        </tbody>
+      </table>
+      <button id="download-btn" style="display:none;">Download Data</button>
+    </div>
+  </div>
+
+  <script>
+    const apiKey = "S1L16VTO8J421VNA"; // Read API Key dari Thingspeak
+    const channelID = "2784831"; // Channel ID dari Thingspeak
+    let allData = []; // Array untuk menyimpan semua data
+
+    // Fungsi untuk mengambil data terbaru dari Thingspeak
+    async function fetchData() {
+      try {
+        const response = await fetch(`https://api.thingspeak.com/channels/${channelID}/feeds.json?api_key=${apiKey}&results=100`);
+        const data = await response.json();
+
+        // Menambahkan data terbaru ke dalam array allData tanpa menghapus data lama
+        const newData = data.feeds.map(feed => ({
+          time: new Date(feed.created_at),
+          suhu: feed.field1 || "--",
+          kelembapan: feed.field2 || "--",
+        }));
+
+        // Menambahkan data baru ke allData tanpa menghapus data lama
+        allData = [...allData, ...newData];
+
+        // Update data real-time (data terakhir)
+        const latestData = allData[allData.length - 1];
+        if (latestData) {
+          document.getElementById("suhu").textContent = latestData.suhu;
+          document.getElementById("kelembapan").textContent = latestData.kelembapan;
+
+          // Periksa suhu untuk alarm
+          if (parseFloat(latestData.suhu) > 27) {
+            document.getElementById("alert").style.display = "block";
+            // Ubah warna widget jika suhu > 27°C
+            document.getElementById("widget-suhu").style.background = "rgba(255, 0, 0, 0.8)";
+            document.getElementById("widget-kelembapan").style.background = "rgba(255, 0, 0, 0.8)"; // Warna widget kelembapan disamakan
+            document.getElementById("widget-suhu").style.color = "#fff";
+            document.getElementById("widget-kelembapan").style.color = "#fff";
+            document.getElementById("suhu").style.color = "#fff";
+            document.getElementById("kelembapan").style.color = "#fff";
+          } else {
+            document.getElementById("alert").style.display = "none";
+            // Kembalikan warna widget
+            document.getElementById("widget-suhu").style.background = "rgba(255, 255, 255, 0.2)";
+            document.getElementById("widget-kelembapan").style.background = "rgba(255, 255, 255, 0.2)"; // Warna widget kelembapan disamakan
+            document.getElementById("widget-suhu").style.color = "#fff";
+            document.getElementById("widget-kelembapan").style.color = "#fff";
+            document.getElementById("suhu").style.color = "#fff";
+            document.getElementById("kelembapan").style.color = "#fff";
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    }
+
+    // Fungsi untuk menampilkan waktu sebagai angka
+    function updateTime() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const timeString = `${hours}:${minutes}:${seconds}`;
+      document.getElementById('current-time').textContent = `${timeString}`; // Hanya menampilkan waktu
+    }
+
+    // Update jam setiap detik
+    setInterval(updateTime, 1000); // Memperbarui waktu setiap 1 detik
+    updateTime(); // Inisialisasi tampilan waktu
+
+    // Fungsi untuk memfilter data berdasarkan waktu dan tanggal
+    function filterData() {
+      const searchDate = document.getElementById("search-date").value;
+      const searchTime = document.getElementById("search-time").value;
+
+      // Memfilter data yang sesuai dengan tanggal dan waktu yang dimasukkan
+      const filteredData = allData.filter(d => {
+        const dataDate = d.time.toISOString().split("T")[0];
+        const dataTime = d.time.toTimeString().split(" ")[0].slice(0, 5);
+        return (!searchDate || searchDate === dataDate) && (!searchTime || searchTime === dataTime);
+      });
+
+      // Render data setelah update
+      renderData(filteredData);
+    }
+
+    // Fungsi untuk menampilkan data hasil pencarian ke tabel
+    function renderData(data) {
+      const dataLogger = document.getElementById("data-logger");
+      dataLogger.innerHTML = data.length
+        ? data.map(d => `
+            <tr>
+              <td>${d.time.toLocaleString()}</td>
+              <td>${d.suhu}</td>
+              <td>${d.kelembapan}</td>
+            </tr>
+          `).join("")
+        : `<tr><td colspan="3">Tidak ada data yang sesuai.</td></tr>`;
+    }
+
+    // Ambil data saat halaman dimuat, namun hanya update setiap 10 detik
+    setInterval(fetchData, 10000); // Update data setiap 10 detik
+    fetchData();
+  </script>
+</body>
+</html>
